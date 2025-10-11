@@ -110,7 +110,7 @@ Route::post('/student', function (Request $request) {
         'user.email' => ['required_without:user_id', 'email', 'max:255', 'unique:users,email'],
         'user.password' => ['required_without:user_id', 'string', 'min:8'],
         'user.user_type' => ['nullable', 'string', Rule::in(['SuperAdmin', 'Admin', 'Student'])],
-        'document' => ['required', 'string', 'max:50', 'unique:students,document'],
+        'document' => ['required', 'integer', 'unique:students,document'],
         'first_name' => ['required', 'string', 'max:255'],
         'last_name' => ['required', 'string', 'max:255'],
         'birthdate' => ['nullable', 'date'],
@@ -169,22 +169,30 @@ Route::post('/student', function (Request $request) {
     return response()->json($student->load('user', 'tutors'), 201);
 });
 
-Route::patch('/student/{student}', function (Request $request, Student $student) {
+Route::patch('/student/{id}', function (Request $request, int $id) {
     $validated = $request->validate([
         'grade_level' => ['nullable', 'integer', 'min:1', 'max:12'],
         'section' => ['nullable', 'string', 'max:10'],
         'enrollment_status' => ['nullable', 'string', 'max:25'],
     ]);
 
-    $student->fill(array_filter($validated, fn ($value) => !is_null($value)));
-    $student->save();
+    $student = Student::find($id);
 
-    return response()->json($student->fresh()->only([
-        'id',
-        'grade_level',
-        'section',
-        'enrollment_status',
-    ]));
+    if (!$student) {
+        return response()->json([
+            'message' => 'Estudiante no encontrado',
+        ], 404);
+    }
+
+    $updates = collect($validated)
+        ->filter(fn ($value) => !is_null($value))
+        ->all();
+
+    if (!empty($updates)) {
+        $student->fill($updates)->save();
+    }
+
+    return response()->json($student->refresh()->load('user', 'tutors'));
 });
 
 ?>
