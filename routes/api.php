@@ -17,6 +17,26 @@ Route::get('/health', function () {
     return response()->json(['status' => 'OK']);
 });
 
+Route::get('/login', function (Request $request) {
+    $validated = $request->validate([
+        'email' => ['required', 'email'],
+        'password' => ['required', 'string'],
+    ]);
+
+    $user = User::where('email', $validated['email'])->first();
+
+    if (!$user || !Hash::check($validated['password'], $user->password)) {
+        return response()->json([
+            'message' => 'Incorrect',
+        ], 401);
+    }
+
+    return response()->json([
+        'message' => 'Correct',
+        'user' => $user,
+    ]);
+});
+
 // Endpoint para conseguir a todos los usuarios con o sin filtros
 /* Tipos de usuario:
     - SuperAdmin
@@ -147,6 +167,24 @@ Route::post('/student', function (Request $request) {
     }
 
     return response()->json($student->load('user', 'tutors'), 201);
+});
+
+Route::patch('/student/{student}', function (Request $request, Student $student) {
+    $validated = $request->validate([
+        'grade_level' => ['nullable', 'integer', 'min:1', 'max:12'],
+        'section' => ['nullable', 'string', 'max:10'],
+        'enrollment_status' => ['nullable', 'string', 'max:25'],
+    ]);
+
+    $student->fill(array_filter($validated, fn ($value) => !is_null($value)));
+    $student->save();
+
+    return response()->json($student->fresh()->only([
+        'id',
+        'grade_level',
+        'section',
+        'enrollment_status',
+    ]));
 });
 
 ?>
