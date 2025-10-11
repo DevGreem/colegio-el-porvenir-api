@@ -195,4 +195,21 @@ Route::patch('/student/{id}', function (Request $request, int $id) {
     return response()->json($student->refresh()->load('user', 'tutors'));
 });
 
+Route::delete('/student/{id}', function (int $id) {
+    $student = Student::find($id);
+
+    if (!$student) {
+        return response()->json([
+            'message' => 'Estudiante no encontrado',
+        ], 404);
+    }
+
+    $student->tutors()->detach();
+    $student->delete();
+
+    return response()->json([
+        'message' => 'Estudiante eliminado correctamente',
+    ]);
+});
+
 ?>
