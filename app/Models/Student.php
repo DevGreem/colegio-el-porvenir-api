@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Tutor;
+use App\Models\Course;
 
 class Student extends Model
 {
@@ -22,11 +23,10 @@ class Student extends Model
         'last_name',
         'birthdate',
         'gender',
-        'grade_level',
-        'section',
         'enrollment_date',
         'enrollment_status',
         'phone',
+        'course_id',
     ];
 
     /**
@@ -39,7 +39,7 @@ class Student extends Model
         return [
             'birthdate' => 'date',
             'enrollment_date' => 'date',
-            'grade_level' => 'integer',
+            'course_id' => 'integer',
         ];
     }
 
@@ -59,5 +59,21 @@ class Student extends Model
         return $this->belongsToMany(Tutor::class, 'student_tutors')
             ->using(StudentTutor::class)
             ->withTimestamps();
+    }
+
+    /**
+     * Relationship: course assigned to the student.
+     */
+    public function course()
+    {
+        return $this->belongsTo(Course::class);
+    }
+
+    /**
+     * Relationship: read-only course metadata exposed via database view.
+     */
+    public function courseSnapshot()
+    {
+        return $this->hasOne(StudentCourseView::class, 'student_id');
     }
 }

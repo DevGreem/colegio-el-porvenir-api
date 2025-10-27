@@ -54,4 +54,12 @@ class User extends Authenticatable
     {
         return $this->hasOne(Student::class);
     }
+
+    /**
+     * Relationship: read-only snapshot combining user and student data.
+     */
+    public function studentSnapshot()
+    {
+        return $this->hasOne(UserStudentView::class, 'user_id');
+    }
 }
