@@ -9,15 +9,19 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
 
+// Home de la api
 Route::get('/', function () {
     return response()->json(['welcome' => 'hello']);
 });
 
+// Solo es para verificar si funciona la api
 Route::get('/health', function () {
     return response()->json(['status' => 'OK']);
 });
 
+// Endpoint para logear a los usuarios en el frontend
 Route::get('/login', function (Request $request) {
+    // Necesita si o si email y password
     $validated = $request->validate([
         'email' => ['required', 'email'],
         'password' => ['required', 'string'],
@@ -25,12 +29,14 @@ Route::get('/login', function (Request $request) {
 
     $user = User::where('email', $validated['email'])->first();
 
+    // Checkea si la contraseña es la misma que el hash, sino, devuelve error 401
     if (!$user || !Hash::check($validated['password'], $user->password)) {
         return response()->json([
             'message' => 'Incorrect',
         ], 401);
     }
 
+    // Si es correcta, devuelve Correct y el usuario
     return response()->json([
         'message' => 'Correct',
         'user' => $user,
@@ -80,8 +86,8 @@ Route::get('/users/{id}', function (int $id) {
 /*
  * Nombre de usuario
  * Correo
- *
- *
+ * Password
+ * Tipo de usuario
 */
 Route::post('/user', function (Request $request) {
     $validated = $request->validate([
@@ -91,6 +97,7 @@ Route::post('/user', function (Request $request) {
         'user_type' => ['required', 'string', Rule::in(['SuperAdmin', 'Admin', 'Student'])],
     ]);
 
+    // Crea el usuario
     $user = User::create([
         'name' => $validated['name'],
         'email' => $validated['email'],
@@ -103,6 +110,8 @@ Route::post('/user', function (Request $request) {
 
 // Sube un nuevo estudiante
 Route::post('/student', function (Request $request) {
+
+    // Valida si cada parametro cumple los requisitos
     $validated = $request->validate([
         'user_id' => ['nullable', 'integer', 'exists:users,id'],
         'user' => ['required_without:user_id', 'array'],
@@ -115,7 +124,7 @@ Route::post('/student', function (Request $request) {
         'last_name' => ['required', 'string', 'max:255'],
         'birthdate' => ['nullable', 'date'],
         'gender' => ['nullable', 'string', 'max:20'],
-    'grade_level' => ['nullable', 'integer', 'min:1', 'max:12'],
+        'grade_level' => ['nullable', 'integer', 'min:1', 'max:12'],
         'section' => ['nullable', 'string', 'max:10'],
         'enrollment_date' => ['nullable', 'date'],
         'enrollment_status' => ['nullable', 'string', 'max:25'],
@@ -126,20 +135,28 @@ Route::post('/student', function (Request $request) {
         'tutors.*.email' => ['nullable', 'email', 'max:255'],
     ]);
 
+    // Si no esta vacio busca el usuario del usuario y lo devuelve
     if (!empty($validated['user_id'])) {
+
+
         $user = User::find($validated['user_id']);
 
+        // Si el usuario ya tiene un perfil de estudiante, devuelve 409 avisando que ya existe
         if ($user->student) {
             return response()->json([
                 'message' => 'El usuario ya tiene un perfil de estudiante registrado.',
             ], 409);
         }
 
+        // Verifica si el usuario es de tipo Student, sino, lo actualiza (por si hay algun error)
         if ($user->user_type !== 'Student') {
             $user->user_type = 'Student';
             $user->save();
         }
-    } else {
+    }
+    else {
+        // Si el usuario no existe, lo crea para que el estudiante pueda ser creado.
+
         $userData = $validated['user'];
 
         $user = User::create([
@@ -150,26 +167,35 @@ Route::post('/student', function (Request $request) {
         ]);
     }
 
+
     $studentData = Arr::except($validated, ['user_id', 'user', 'tutors']);
     $studentData['user_id'] = $user->id;
+    // Si no devuelven status, pone por defecto activo.
     $studentData['enrollment_status'] = $validated['enrollment_status'] ?? 'Activo';
 
     $student = Student::create($studentData);
 
+    // Si no esta vacio  hace una coleccion de valores de los tutores en el metodo
     if (!empty($validated['tutors'])) {
+
+        // Crea a los tutores
         $tutorIds = collect($validated['tutors'])
             ->map(function (array $tutorData) {
                 return Tutor::create($tutorData)->id;
             })
             ->all();
 
+        // Hace que el estudiante este relacionado con esos tutores
         $student->tutors()->sync($tutorIds, false);
     }
 
+    // Devuelve los datos del nuevo estudiante
     return response()->json($student->load('user', 'tutors'), 201);
 });
 
 Route::patch('/student/{id}', function (Request $request, int $id) {
+
+    // Valida si estan esos parametros en el request
     $validated = $request->validate([
         'grade_level' => ['nullable', 'integer', 'min:1', 'max:12'],
         'section' => ['nullable', 'string', 'max:10'],
@@ -184,27 +210,35 @@ Route::patch('/student/{id}', function (Request $request, int $id) {
         ], 404);
     }
 
+    // Hace una conexion con los valores dados que no sean null
     $updates = collect($validated)
         ->filter(fn ($value) => !is_null($value))
         ->all();
 
+    // Si no esta vacio, cambia los datos
     if (!empty($updates)) {
         $student->fill($updates)->save();
     }
 
+    // Devuelve el estudiante actualizado
     return response()->json($student->refresh()->load('user', 'tutors'));
 });
 
+// Elimina un usuario
 Route::delete('/student/{id}', function (int $id) {
     $student = Student::find($id);
 
+    // Si no encuentra el estudiante, devuelve 404
     if (!$student) {
         return response()->json([
             'message' => 'Estudiante no encontrado',
         ], 404);
     }
 
+    // Hace que los tutores dejen de estar relacionados con el estudiante
     $student->tutors()->detach();
+
+    // Finalmente, elimina al estudiante.
     $student->delete();
 
     return response()->json([
