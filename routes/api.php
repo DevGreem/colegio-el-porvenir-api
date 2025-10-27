@@ -14,15 +14,19 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
 
+// Home de la api
 Route::get('/', function () {
     return response()->json(['welcome' => 'hello']);
 });
 
+// Solo es para verificar si funciona la api
 Route::get('/health', function () {
     return response()->json(['status' => 'OK']);
 });
 
+// Endpoint para logear a los usuarios en el frontend
 Route::get('/login', function (Request $request) {
+    // Necesita si o si email y password
     $validated = $request->validate([
         'email' => ['required', 'email'],
         'password' => ['required', 'string'],
@@ -30,12 +34,14 @@ Route::get('/login', function (Request $request) {
 
     $user = User::where('email', $validated['email'])->first();
 
+    // Checkea si la contraseña es la misma que el hash, sino, devuelve error 401
     if (!$user || !Hash::check($validated['password'], $user->password)) {
         return response()->json([
             'message' => 'Incorrect',
         ], 401);
     }
 
+    // Si es correcta, devuelve Correct y el usuario
     return response()->json([
         'message' => 'Correct',
         'user' => $user,
@@ -115,8 +121,8 @@ Route::get('/users/{id}', function (int $id) use ($formatUserStudentPayload) {
 /*
  * Nombre de usuario
  * Correo
- *
- *
+ * Password
+ * Tipo de usuario
 */
 Route::post('/user', function (Request $request) {
     $validated = $request->validate([
@@ -126,6 +132,7 @@ Route::post('/user', function (Request $request) {
         'user_type' => ['required', 'string', Rule::in(['SuperAdmin', 'Admin', 'Student'])],
     ]);
 
+    // Crea el usuario
     $user = User::create([
         'name' => $validated['name'],
         'email' => $validated['email'],
@@ -160,20 +167,28 @@ Route::post('/student', function (Request $request) use ($formatUserStudentPaylo
         'tutors.*.email' => ['nullable', 'email', 'max:255'],
     ]);
 
+    // Si no esta vacio busca el usuario del usuario y lo devuelve
     if (!empty($validated['user_id'])) {
+
+
         $user = User::find($validated['user_id']);
 
+        // Si el usuario ya tiene un perfil de estudiante, devuelve 409 avisando que ya existe
         if ($user->student) {
             return response()->json([
                 'message' => 'El usuario ya tiene un perfil de estudiante registrado.',
             ], 409);
         }
 
+        // Verifica si el usuario es de tipo Student, sino, lo actualiza (por si hay algun error)
         if ($user->user_type !== 'Student') {
             $user->user_type = 'Student';
             $user->save();
         }
-    } else {
+    }
+    else {
+        // Si el usuario no existe, lo crea para que el estudiante pueda ser creado.
+
         $userData = $validated['user'];
 
         $user = User::create([
@@ -184,8 +199,10 @@ Route::post('/student', function (Request $request) use ($formatUserStudentPaylo
         ]);
     }
 
+
     $studentData = Arr::except($validated, ['user_id', 'user', 'tutors']);
     $studentData['user_id'] = $user->id;
+    // Si no devuelven status, pone por defecto activo.
     $studentData['enrollment_status'] = $validated['enrollment_status'] ?? 'Activo';
 
     $course = Course::find($validated['course_id']);
@@ -199,13 +216,17 @@ Route::post('/student', function (Request $request) use ($formatUserStudentPaylo
 
     $student = Student::create($studentData);
 
+    // Si no esta vacio  hace una coleccion de valores de los tutores en el metodo
     if (!empty($validated['tutors'])) {
+
+        // Crea a los tutores
         $tutorIds = collect($validated['tutors'])
             ->map(function (array $tutorData) {
                 return Tutor::create($tutorData)->id;
             })
             ->all();
 
+        // Hace que el estudiante este relacionado con esos tutores
         $student->tutors()->sync($tutorIds, false);
     }
 
@@ -238,6 +259,7 @@ Route::patch('/student/{id}', function (Request $request, int $id) use ($formatU
         }
     }
 
+    // Si no esta vacio, cambia los datos
     if (!empty($updates)) {
         $course = null;
 
@@ -262,16 +284,21 @@ Route::patch('/student/{id}', function (Request $request, int $id) use ($formatU
     return response()->json($formatUserStudentPayload($snapshot, $student));
 });
 
+// Elimina un usuario
 Route::delete('/student/{id}', function (int $id) {
     $student = Student::find($id);
 
+    // Si no encuentra el estudiante, devuelve 404
     if (!$student) {
         return response()->json([
             'message' => 'Estudiante no encontrado',
         ], 404);
     }
 
+    // Hace que los tutores dejen de estar relacionados con el estudiante
     $student->tutors()->detach();
+
+    // Finalmente, elimina al estudiante.
     $student->delete();
 
     return response()->json([
