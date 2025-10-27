@@ -11,8 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('user_type')->default('Student')->after('email');
+        Schema::create('subjects', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->unique();
+            $table->unsignedTinyInteger('weekly_hours');
+            $table->timestamps();
         });
     }
 
@@ -21,8 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('user_type');
-        });
+        Schema::dropIfExists('subjects');
     }
 };
