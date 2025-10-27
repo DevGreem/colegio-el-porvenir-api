@@ -12,20 +12,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('students', function (Blueprint $table) {
+        Schema::create('students', function (Blueprint $table) {
             $table->id()->first();
-            $table->string('first_name')->after('document');
-            $table->string('last_name')->after('first_name');
-            $table->date('birthdate')->nullable()->after('last_name');
-            $table->string('gender', 20)->nullable()->after('birthdate');
-            $table->unsignedTinyInteger('grade_level')->nullable()->after('gender');
-            $table->string('section', 10)->nullable()->after('grade_level');
-            $table->date('enrollment_date')->nullable()->after('section');
-            $table->string('enrollment_status', 25)->default('Activo')->after('enrollment_date');
-            $table->string('phone', 30)->nullable()->after('enrollment_status');
+            $table->integer('document')->unique();
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->date('birthdate')->nullable();
+            $table->string('gender', 20)->nullable();
+            $table->unsignedTinyInteger('grade_level')->nullable();
+            $table->string('section', 10)->nullable();
+            $table->date('enrollment_date')->nullable();
+            $table->string('enrollment_status', 25)->default('Activo');
+            $table->string('phone', 30)->nullable();
             $table->timestamps();
-
-            $table->unique('user_id');
+            $table->foreignId('user_id')->references('id')->on('users');
         });
 
         Schema::create('tutors', function (Blueprint $table) {
@@ -75,32 +75,6 @@ return new class extends Migration
                 FOR EACH ROW
                 EXECUTE FUNCTION enforce_grade_level();
             SQL);
-        } elseif ($driver === 'sqlite') {
-            DB::unprepared(<<<'SQL'
-                CREATE TRIGGER enforce_grade_level_insert
-                BEFORE INSERT ON students
-                FOR EACH ROW
-                BEGIN
-                    SELECT
-                        CASE
-                            WHEN NEW.grade_level IS NOT NULL AND (NEW.grade_level < 1 OR NEW.grade_level > 12) THEN
-                                RAISE(ABORT, 'El grado debe estar entre 1 y 12')
-                        END;
-                END;
-            SQL);
-
-            DB::unprepared(<<<'SQL'
-                CREATE TRIGGER enforce_grade_level_update
-                BEFORE UPDATE ON students
-                FOR EACH ROW
-                BEGIN
-                    SELECT
-                        CASE
-                            WHEN NEW.grade_level IS NOT NULL AND (NEW.grade_level < 1 OR NEW.grade_level > 12) THEN
-                                RAISE(ABORT, 'El grado debe estar entre 1 y 12')
-                        END;
-                END;
-            SQL);
         }
     }
 
@@ -115,13 +89,11 @@ return new class extends Migration
             DB::unprepared('DROP TRIGGER IF EXISTS enforce_grade_level_update ON students');
             DB::unprepared('DROP TRIGGER IF EXISTS enforce_grade_level_insert ON students');
             DB::unprepared('DROP FUNCTION IF EXISTS enforce_grade_level()');
-        } elseif ($driver === 'sqlite') {
-            DB::unprepared('DROP TRIGGER IF EXISTS enforce_grade_level_update');
-            DB::unprepared('DROP TRIGGER IF EXISTS enforce_grade_level_insert');
         }
 
-    Schema::dropIfExists('student_tutors');
-    Schema::dropIfExists('tutors');
+        Schema::dropIfExists('students');
+        Schema::dropIfExists('student_tutors');
+        Schema::dropIfExists('tutors');
 
         Schema::table('students', function (Blueprint $table) {
             $table->dropUnique(['user_id']);
